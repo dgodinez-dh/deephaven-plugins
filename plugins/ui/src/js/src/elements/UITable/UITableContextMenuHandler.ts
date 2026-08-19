@@ -27,6 +27,7 @@ interface UIContextItemParams {
   is_column_header: boolean;
   is_row_header: boolean;
   always_fetch_columns: RowDataMap;
+  selected_ranges: { start_row: number; end_row: number }[];
 }
 
 type UIContextItem = Omit<ContextAction, 'action' | 'actions' | 'icon'> & {
@@ -44,7 +45,8 @@ export type ResolvableUIContextItem =
 function wrapUIContextItem(
   item: UIContextItem,
   data: IrisGridContextMenuData,
-  alwaysFetchColumns: RowDataMap
+  alwaysFetchColumns: RowDataMap,
+  selectedRanges: { start_row: number; end_row: number }[]
 ): ContextAction {
   return {
     group: 999999, // Default to the end of the menu
@@ -62,11 +64,17 @@ function wrapUIContextItem(
             is_column_header: data.rowIndex == null,
             is_row_header: data.columnIndex == null,
             always_fetch_columns: alwaysFetchColumns,
+            selected_ranges: selectedRanges,
           });
         }
       : undefined,
     actions: item.actions
-      ? wrapContextActions(item.actions, data, alwaysFetchColumns)
+      ? wrapContextActions(
+          item.actions,
+          data,
+          alwaysFetchColumns,
+          selectedRanges
+        )
       : undefined,
   } satisfies ContextAction;
 }
@@ -74,10 +82,11 @@ function wrapUIContextItem(
 function wrapUIContextItems(
   items: UIContextItem | UIContextItem[],
   data: IrisGridContextMenuData,
-  alwaysFetchColumns: RowDataMap
+  alwaysFetchColumns: RowDataMap,
+  selectedRanges: { start_row: number; end_row: number }[]
 ): ContextAction[] {
   return ensureArray(items).map(item =>
-    wrapUIContextItem(item, data, alwaysFetchColumns)
+    wrapUIContextItem(item, data, alwaysFetchColumns, selectedRanges)
   );
 }
 
@@ -91,7 +100,8 @@ function wrapUIContextItems(
 export function wrapContextActions(
   items: ResolvableUIContextItem | ResolvableUIContextItem[],
   data: IrisGridContextMenuData,
-  alwaysFetchColumns: ColumnName[] | RowDataMap
+  alwaysFetchColumns: ColumnName[] | RowDataMap,
+  selectedRanges: { start_row: number; end_row: number }[]
 ): ResolvableContextAction[] {
   let alwaysFetchColumnsMap: RowDataMap = {};
   if (Array.isArray(alwaysFetchColumns)) {
@@ -118,14 +128,56 @@ export function wrapContextActions(
             is_column_header: data.rowIndex == null,
             is_row_header: data.columnIndex == null,
             always_fetch_columns: alwaysFetchColumnsMap,
+            selected_ranges: selectedRanges,
           })) ?? [],
           data,
-          alwaysFetchColumnsMap
+          alwaysFetchColumnsMap,
+          selectedRanges
         );
     }
 
-    return wrapUIContextItem(item, data, alwaysFetchColumnsMap);
+    return wrapUIContextItem(item, data, alwaysFetchColumnsMap, selectedRanges);
   });
+}
+
+/**
+ * Converts the viewport-space selected ranges from IrisGrid to model row ranges.
+ * Model row indices correspond to sorted/filtered table positions usable with table.slice() in Python.
+ */
+export function getModelSelectedRanges(
+  irisGrid: IrisGridType
+): { start_row: number; end_row: number }[] {
+  const { selectedRanges } = irisGrid.state;
+  const result: { start_row: number; end_row: number }[] = [];
+
+  selectedRanges.forEach(range => {
+    if (range.startRow == null || range.endRow == null) return;
+
+    let rangeStart: number | null = null;
+    let rangeEnd: number | null = null;
+
+    for (let row = range.startRow; row <= range.endRow; row += 1) {
+      const modelRow = irisGrid.getModelRow(row);
+      if (modelRow != null) {
+        if (rangeStart == null) {
+          rangeStart = modelRow;
+          rangeEnd = modelRow;
+        } else if (modelRow === (rangeEnd as number) + 1) {
+          rangeEnd = modelRow;
+        } else {
+          result.push({ start_row: rangeStart, end_row: rangeEnd as number });
+          rangeStart = modelRow;
+          rangeEnd = modelRow;
+        }
+      }
+    }
+
+    if (rangeStart != null) {
+      result.push({ start_row: rangeStart, end_row: rangeEnd as number });
+    }
+  });
+
+  return result;
 }
 
 /**
@@ -190,7 +242,8 @@ class UITableContextMenuHandler extends IrisGridContextMenuHandler {
           modelColumn,
           modelRow: null,
         },
-        this.alwaysFetchColumns
+        this.alwaysFetchColumns,
+        getModelSelectedRanges(irisGrid)
       ),
     ];
   }

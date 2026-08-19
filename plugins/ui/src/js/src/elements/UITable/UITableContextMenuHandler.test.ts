@@ -43,6 +43,7 @@ const SERVER_CELL_DATA = {
   is_column_header: false,
   is_row_header: false,
   always_fetch_columns: {},
+  selected_ranges: [],
 };
 
 const CLIENT_HEADER_DATA = {
@@ -63,6 +64,7 @@ const SERVER_HEADER_DATA = {
   is_column_header: true,
   is_row_header: false,
   always_fetch_columns: {},
+  selected_ranges: [],
 };
 
 async function resolveContextAction(
@@ -79,7 +81,7 @@ describe('wrapContextActions', () => {
     const action = {
       action: jest.fn(),
     };
-    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, []);
+    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, [], []);
     expect(wrapped).toEqual([
       expect.objectContaining({
         icon: undefined,
@@ -98,7 +100,7 @@ describe('wrapContextActions', () => {
       action: jest.fn(),
       icon: 'dhTruck',
     };
-    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, []);
+    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, [], []);
     expect(wrapped).toEqual([
       expect.objectContaining({
         icon: dhTruck,
@@ -112,7 +114,7 @@ describe('wrapContextActions', () => {
     const action = {
       action: jest.fn(),
     };
-    const wrapped = wrapContextActions(action, CLIENT_HEADER_DATA, []);
+    const wrapped = wrapContextActions(action, CLIENT_HEADER_DATA, [], []);
     expect(wrapped).toEqual([
       expect.objectContaining({
         icon: undefined,
@@ -133,7 +135,7 @@ describe('wrapContextActions', () => {
         action: mockAction,
       })
     );
-    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, []);
+    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, [], []);
     expect(wrapped).toEqual([expect.any(Function)]);
     const resolvedAction = await resolveContextAction(wrapped[0]);
     expect(resolvedAction.length).toBe(1);
@@ -152,7 +154,7 @@ describe('wrapContextActions', () => {
         },
       ],
     };
-    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, []);
+    const wrapped = wrapContextActions(action, CLIENT_CELL_DATA, [], []);
     expect(wrapped).toEqual([
       expect.objectContaining({
         icon: undefined,

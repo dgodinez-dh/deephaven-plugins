@@ -2,7 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Any, Union
 import logging
-from deephaven.table import RollupTable, TreeTable
+from deephaven.table import Table, RollupTable, TreeTable
 from ..elements import Element, resolve
 from ..elements.UriElement import UriElement
 from .types import AlignSelf, DimensionValue, JustifySelf, LayoutFlex, Position
@@ -229,6 +229,52 @@ def _validate_table_format(
                 raise ValueError("TableHeatmap gradient must have at least 2 colors.")
 
 
+def _resolve_selection(
+    selected_ranges: list[dict[str, int]],
+    tbl: Table,
+) -> Table:
+    from deephaven import merge
+
+    slices = [tbl.slice(r["start_row"], r["end_row"] + 1) for r in selected_ranges]
+    if not slices:
+        return tbl.slice(0, 0)
+    return merge(slices) if len(slices) > 1 else slices[0]
+
+
+def _add_selected_rows(data: dict, tbl: Table) -> dict:
+    data = dict(data)
+    data["selected_rows"] = _resolve_selection(data.pop("selected_ranges", []), tbl)
+    return data
+
+
+def _wrap_context_menu_item(
+    item: ResolvableContextMenuItem,
+    tbl: Table,
+) -> Any:
+    """Wrap a context menu item so callbacks receive selected_rows instead of selected_ranges."""
+    if callable(item) and not isinstance(item, dict):
+
+        def wrapped_generator(data, _item=item):
+            result = _item(_add_selected_rows(data, tbl))
+            if isinstance(result, list):
+                return [_wrap_context_menu_item(r, tbl) for r in result]
+            return _wrap_context_menu_item(result, tbl) if result is not None else None
+
+        return wrapped_generator
+    elif isinstance(item, dict):
+        wrapped = dict(item)
+        if "action" in wrapped and callable(wrapped["action"]):
+            wrapped["action"] = lambda data, _a=wrapped["action"]: _a(
+                _add_selected_rows(data, tbl)
+            )
+        if "actions" in wrapped and isinstance(wrapped["actions"], list):
+            wrapped["actions"] = [
+                _wrap_context_menu_item(a, tbl) for a in wrapped["actions"]
+            ]
+        return wrapped
+    return item
+
+
 def _normalize_table_sorts(
     sorts: TableSortLike | list[TableSortLike],
 ) -> list[dict[str, Any]]:
@@ -448,6 +494,22 @@ class table(Element):
             props["sorts"] = _normalize_table_sorts(sorts)
 
         props["table"] = resolve(table) if isinstance(table, str) else table
+
+        tbl = props["table"]
+        if isinstance(tbl, Table):
+            if context_menu is not None:
+                items = context_menu if isinstance(context_menu, list) else [context_menu]
+                props["context_menu"] = [_wrap_context_menu_item(i, tbl) for i in items]
+            if context_header_menu is not None:
+                items = (
+                    context_header_menu
+                    if isinstance(context_header_menu, list)
+                    else [context_header_menu]
+                )
+                props["context_header_menu"] = [
+                    _wrap_context_menu_item(i, tbl) for i in items
+                ]
+
         del props["self"]
         self._props = props
         self._key = props.get("key")

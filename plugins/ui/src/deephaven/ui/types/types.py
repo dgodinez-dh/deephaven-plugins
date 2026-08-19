@@ -345,6 +345,12 @@ class ContextMenuActionParams(TypedDict):
     Whether the context menu was opened on a row header.
     """
 
+    selected_rows: Table
+    """
+    The currently selected rows as a Deephaven Table.
+    Use this to perform server-side operations on the selection, e.g. ``selected_rows.where(...)``.
+    """
+
 
 ContextMenuAction = Callable[[ContextMenuActionParams], None]
 """

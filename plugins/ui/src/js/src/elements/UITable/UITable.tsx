@@ -64,6 +64,7 @@ import UITableMouseHandler from './UITableMouseHandler';
 import UITableContextMenuHandler, {
   type ResolvableUIContextItem,
   wrapContextActions,
+  getModelSelectedRanges,
 } from './UITableContextMenuHandler';
 import type UITableModel from './UITableModel';
 import { makeUiTableModel } from './UITableModel';
@@ -541,10 +542,15 @@ export function UITable({
 
   const onContextMenu = useCallback(
     (data: IrisGridContextMenuData) => [
-      ...wrapContextActions(contextMenu, data, alwaysFetchColumns),
+      ...wrapContextActions(
+        contextMenu,
+        data,
+        alwaysFetchColumns,
+        irisGrid != null ? getModelSelectedRanges(irisGrid) : []
+      ),
       ...pluginOnContextMenu(data),
     ],
-    [contextMenu, alwaysFetchColumns, pluginOnContextMenu]
+    [contextMenu, alwaysFetchColumns, pluginOnContextMenu, irisGrid]
   );
 
   // Some of the server props rely on the model existing,
