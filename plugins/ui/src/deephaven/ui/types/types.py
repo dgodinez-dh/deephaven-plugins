@@ -347,8 +347,9 @@ class ContextMenuActionParams(TypedDict):
 
     selected_rows: Table
     """
-    The currently selected rows as a Deephaven Table.
-    Use this to perform server-side operations on the selection, e.g. ``selected_rows.where(...)``.
+    A static snapshot of the currently selected rows as a Deephaven Table.
+    For cell selections the full row is included, matching IrisGrid convention.
+    An empty table (no rows) is returned when nothing is selected.
     """
 
 

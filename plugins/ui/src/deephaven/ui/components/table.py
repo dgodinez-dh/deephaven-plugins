@@ -230,15 +230,19 @@ def _validate_table_format(
 
 
 def _resolve_selection(
-    selected_ranges: list[dict[str, int]],
+    selected_ranges: list[dict],
     tbl: Table,
 ) -> Table:
     from deephaven import merge
 
-    slices = [tbl.slice(r["start_row"], r["end_row"] + 1) for r in selected_ranges]
-    if not slices:
-        return tbl.slice(0, 0)
-    return merge(slices) if len(slices) > 1 else slices[0]
+    # Column bounds are ignored; a cell selection spans the full row per IrisGrid convention.
+    slices = [
+        tbl.slice(r["start_row"], r["end_row"] + 1)
+        for r in selected_ranges
+        if r.get("start_row") is not None and r.get("end_row") is not None
+    ]
+    combined = merge(slices) if len(slices) > 1 else slices[0] if slices else tbl.slice(0, 0)
+    return combined.snapshot()
 
 
 def _add_selected_rows(data: dict, tbl: Table) -> dict:

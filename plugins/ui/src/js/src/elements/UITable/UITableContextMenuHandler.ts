@@ -27,7 +27,12 @@ interface UIContextItemParams {
   is_column_header: boolean;
   is_row_header: boolean;
   always_fetch_columns: RowDataMap;
-  selected_ranges: { start_row: number; end_row: number }[];
+  selected_ranges: {
+    start_row: number | null;
+    end_row: number | null;
+    start_column: number | null;
+    end_column: number | null;
+  }[];
 }
 
 type UIContextItem = Omit<ContextAction, 'action' | 'actions' | 'icon'> & {
@@ -46,7 +51,7 @@ function wrapUIContextItem(
   item: UIContextItem,
   data: IrisGridContextMenuData,
   alwaysFetchColumns: RowDataMap,
-  selectedRanges: { start_row: number; end_row: number }[]
+  selectedRanges: UIContextItemParams['selected_ranges']
 ): ContextAction {
   return {
     group: 999999, // Default to the end of the menu
@@ -83,7 +88,7 @@ function wrapUIContextItems(
   items: UIContextItem | UIContextItem[],
   data: IrisGridContextMenuData,
   alwaysFetchColumns: RowDataMap,
-  selectedRanges: { start_row: number; end_row: number }[]
+  selectedRanges: UIContextItemParams['selected_ranges']
 ): ContextAction[] {
   return ensureArray(items).map(item =>
     wrapUIContextItem(item, data, alwaysFetchColumns, selectedRanges)
@@ -101,7 +106,7 @@ export function wrapContextActions(
   items: ResolvableUIContextItem | ResolvableUIContextItem[],
   data: IrisGridContextMenuData,
   alwaysFetchColumns: ColumnName[] | RowDataMap,
-  selectedRanges: { start_row: number; end_row: number }[]
+  selectedRanges: UIContextItemParams['selected_ranges']
 ): ResolvableContextAction[] {
   let alwaysFetchColumnsMap: RowDataMap = {};
   if (Array.isArray(alwaysFetchColumns)) {
@@ -141,43 +146,30 @@ export function wrapContextActions(
 }
 
 /**
- * Converts the viewport-space selected ranges from IrisGrid to model row ranges.
- * Model row indices correspond to sorted/filtered table positions usable with table.slice() in Python.
+ * Converts the viewport-space selected ranges from IrisGrid to model-index ranges,
+ * including both row and column bounds. Null means "all" (unbounded in that dimension).
  */
 export function getModelSelectedRanges(
   irisGrid: IrisGridType
-): { start_row: number; end_row: number }[] {
+): UIContextItemParams['selected_ranges'] {
   const { selectedRanges } = irisGrid.state;
-  const result: { start_row: number; end_row: number }[] = [];
 
-  selectedRanges.forEach(range => {
-    if (range.startRow == null || range.endRow == null) return;
-
-    let rangeStart: number | null = null;
-    let rangeEnd: number | null = null;
-
-    for (let row = range.startRow; row <= range.endRow; row += 1) {
-      const modelRow = irisGrid.getModelRow(row);
-      if (modelRow != null) {
-        if (rangeStart == null) {
-          rangeStart = modelRow;
-          rangeEnd = modelRow;
-        } else if (modelRow === (rangeEnd as number) + 1) {
-          rangeEnd = modelRow;
-        } else {
-          result.push({ start_row: rangeStart, end_row: rangeEnd as number });
-          rangeStart = modelRow;
-          rangeEnd = modelRow;
-        }
-      }
-    }
-
-    if (rangeStart != null) {
-      result.push({ start_row: rangeStart, end_row: rangeEnd as number });
-    }
-  });
-
-  return result;
+  return selectedRanges.map(range => ({
+    start_row:
+      range.startRow != null
+        ? irisGrid.getModelRow(range.startRow) ?? null
+        : null,
+    end_row:
+      range.endRow != null ? irisGrid.getModelRow(range.endRow) ?? null : null,
+    start_column:
+      range.startColumn != null
+        ? irisGrid.getModelColumn(range.startColumn) ?? null
+        : null,
+    end_column:
+      range.endColumn != null
+        ? irisGrid.getModelColumn(range.endColumn) ?? null
+        : null,
+  }));
 }
 
 /**
