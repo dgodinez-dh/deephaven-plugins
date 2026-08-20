@@ -1,5 +1,6 @@
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -25,8 +26,10 @@ import {
 import {
   ColorValues,
   colorValueStyle,
+  type ContextAction,
   LoadingOverlay,
   resolveCssVariablesInRecord,
+  type ResolvableContextAction,
   useStyleProps,
   useTheme,
   viewStyleProps,
@@ -71,8 +74,67 @@ import { makeUiTableModel } from './UITableModel';
 import { type UITableLayoutHints } from './JsTableProxy';
 import { useExportedObject } from '../hooks';
 import WidgetErrorView from '../../widget/WidgetErrorView';
+import WidgetCallableContext from '../../widget/WidgetCallableContext';
 
 const log = Log.module('@deephaven/js-plugin-ui/UITable');
+
+/**
+ * Recursively wraps ResolvableContextActions so that model.table is set as a
+ * callable reference immediately before each action fires. This ensures Python
+ * receives the sorted/filtered table rather than the original exported table.
+ */
+function wrapContextActionWithTableRef(
+  action: ContextAction,
+  tableRef: DhType.Table | DhType.TreeTable,
+  setRef: (refs: Array<DhType.Table | DhType.TreeTable>) => void
+): ContextAction {
+  return {
+    ...action,
+    ...(action.action != null
+      ? {
+          action: (event: Event) => {
+            setRef([tableRef]);
+            action.action?.(event);
+          },
+        }
+      : {}),
+    ...(action.actions != null
+      ? {
+          actions: wrapActionsWithTableRef(action.actions, tableRef, setRef),
+        }
+      : {}),
+  };
+}
+
+/**
+ * Recursively wraps ResolvableContextActions so that model.table is set as a
+ * callable reference immediately before each action fires. This ensures Python
+ * receives the sorted/filtered table rather than the original exported table.
+ */
+function wrapActionsWithTableRef(
+  actions: readonly ResolvableContextAction[],
+  tableRef: DhType.Table | DhType.TreeTable,
+  setRef: (refs: Array<DhType.Table | DhType.TreeTable>) => void
+): ResolvableContextAction[] {
+  return actions.map(action => {
+    if (typeof action === 'function') {
+      return async (): Promise<ContextAction[]> => {
+        setRef([tableRef]);
+        const result = await action();
+        return ensureArray(result ?? []).map(item =>
+          wrapContextActionWithTableRef(item, tableRef, setRef)
+        );
+      };
+    }
+    if (action instanceof Promise) {
+      // Pre-resolved promise — no callable invocation, just wrap the resolved items.
+      return action.then(items =>
+        items.map(item => wrapContextActionWithTableRef(item, tableRef, setRef))
+      );
+    }
+    return wrapContextActionWithTableRef(action, tableRef, setRef);
+  });
+}
 
 const ALWAYS_FETCH_COLUMN_LIMIT = 500;
 
@@ -540,17 +602,38 @@ export function UITable({
     ]
   );
 
+  const setNextCallableRefs = useContext(WidgetCallableContext);
+
   const onContextMenu = useCallback(
-    (data: IrisGridContextMenuData) => [
-      ...wrapContextActions(
-        contextMenu,
-        data,
-        alwaysFetchColumns,
-        irisGrid != null ? getModelSelectedRanges(irisGrid, data) : []
-      ),
-      ...pluginOnContextMenu(data),
-    ],
-    [contextMenu, alwaysFetchColumns, pluginOnContextMenu, irisGrid]
+    (data: IrisGridContextMenuData) => {
+      const actions: ResolvableContextAction[] = [
+        ...wrapContextActions(
+          contextMenu,
+          data,
+          alwaysFetchColumns,
+          irisGrid != null ? getModelSelectedRanges(irisGrid, data) : []
+        ),
+        ...pluginOnContextMenu(data),
+      ];
+      // Inject model.table as a callable reference so Python slices the
+      // sorted/filtered server-side table instead of the original exported one.
+      if (setNextCallableRefs != null && model != null) {
+        return wrapActionsWithTableRef(
+          actions,
+          model.table,
+          setNextCallableRefs
+        );
+      }
+      return actions;
+    },
+    [
+      contextMenu,
+      alwaysFetchColumns,
+      pluginOnContextMenu,
+      irisGrid,
+      model,
+      setNextCallableRefs,
+    ]
   );
 
   // Some of the server props rely on the model existing,

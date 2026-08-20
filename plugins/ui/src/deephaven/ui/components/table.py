@@ -247,7 +247,9 @@ def _resolve_selection(
 
 def _add_selected_rows(data: dict, tbl: Table) -> dict:
     data = dict(data)
-    data["selected_rows"] = _resolve_selection(data.pop("selected_ranges", []), tbl)
+    # Use the model table injected by JS (sorted/filtered) when available.
+    model_tbl = data.pop("_table", tbl)
+    data["selected_rows"] = _resolve_selection(data.pop("selected_ranges", []), model_tbl)
     return data
 
 

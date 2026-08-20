@@ -62,6 +62,7 @@ import NavigateContext from '../events/NavigateContext';
 import { usePluginsEventMap } from '../events/usePluginsEventMap';
 import UriExportedObject from './UriExportedObject';
 import applyJsonPatch from './WidgetJsonPatch';
+import WidgetCallableContext from './WidgetCallableContext';
 
 const log = Log.module('@deephaven/js-plugin-ui/WidgetHandler');
 
@@ -148,6 +149,9 @@ function WidgetHandler({
     new Map<string, (...args: unknown[]) => void>()
   );
 
+  // References to drain into the next sendMessage call (used by UITable context menu).
+  const pendingRefs = useRef<Array<dh.Table | dh.TreeTable>>([]);
+
   // Bi-directional communication as defined in https://www.npmjs.com/package/json-rpc-2.0
   const jsonClient = useMemo(
     () =>
@@ -156,7 +160,9 @@ function WidgetHandler({
             new JSONRPCServer(),
             new JSONRPCClient(request => {
               log.debug('Sending request', request);
-              widget.sendMessage(JSON.stringify(request), []);
+              const refs = pendingRefs.current;
+              pendingRefs.current = [];
+              widget.sendMessage(JSON.stringify(request), refs);
             })
           )
         : null,
@@ -596,18 +602,24 @@ function WidgetHandler({
   }, [error, widgetDescriptor, isLoading]);
 
   return renderedDocument != null ? (
-    <NavigateContext.Provider value={handleNavigate}>
-      <WidgetStatusContext.Provider value={widgetStatus}>
-        <DocumentHandler
-          widget={widgetDescriptor}
-          initialData={initialData}
-          onDataChange={onDataChange}
-          onClose={onClose}
-        >
-          {renderedDocument}
-        </DocumentHandler>
-      </WidgetStatusContext.Provider>
-    </NavigateContext.Provider>
+    <WidgetCallableContext.Provider
+      value={refs => {
+        pendingRefs.current = refs;
+      }}
+    >
+      <NavigateContext.Provider value={handleNavigate}>
+        <WidgetStatusContext.Provider value={widgetStatus}>
+          <DocumentHandler
+            widget={widgetDescriptor}
+            initialData={initialData}
+            onDataChange={onDataChange}
+            onClose={onClose}
+          >
+            {renderedDocument}
+          </DocumentHandler>
+        </WidgetStatusContext.Provider>
+      </NavigateContext.Provider>
+    </WidgetCallableContext.Provider>
   ) : null;
 }
 
