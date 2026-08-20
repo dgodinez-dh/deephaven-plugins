@@ -146,13 +146,38 @@ export function wrapContextActions(
 }
 
 /**
- * Converts the viewport-space selected ranges from IrisGrid to model-index ranges,
- * including both row and column bounds. Null means "all" (unbounded in that dimension).
+ * Converts the viewport-space selected ranges from IrisGrid to model-index ranges.
+ * If the right-clicked row is outside the current selection the state may be stale,
+ * so fall back to treating just that row as the selection.
  */
 export function getModelSelectedRanges(
-  irisGrid: IrisGridType
+  irisGrid: IrisGridType,
+  contextMenuData: IrisGridContextMenuData
 ): UIContextItemParams['selected_ranges'] {
   const { selectedRanges } = irisGrid.state;
+  const { rowIndex, modelRow } = contextMenuData;
+
+  // When right-clicking outside the selection, IrisGrid updates selectedRanges
+  // via setState which may not have flushed yet — detect staleness by checking
+  // if the clicked viewport row is already covered by the current ranges.
+  const clickedRowInSelection =
+    rowIndex == null ||
+    selectedRanges.some(
+      r =>
+        (r.startRow == null || r.startRow <= rowIndex) &&
+        (r.endRow == null || r.endRow >= rowIndex)
+    );
+
+  if (!clickedRowInSelection && modelRow != null) {
+    return [
+      {
+        start_row: modelRow,
+        end_row: modelRow,
+        start_column: null,
+        end_column: null,
+      },
+    ];
+  }
 
   return selectedRanges.map(range => ({
     start_row:
@@ -220,22 +245,24 @@ class UITableContextMenuHandler extends IrisGridContextMenuHandler {
     const { column: sourceColumn } = sourceCell;
     const column = columns[sourceColumn];
 
+    const headerContextMenuData: IrisGridContextMenuData = {
+      value: null,
+      valueText: null,
+      rowIndex: null,
+      columnIndex: sourceColumn,
+      column,
+      model,
+      modelColumn,
+      modelRow: null,
+    };
+
     return [
       ...super.getHeaderActions(modelIndex, gridPoint),
       ...wrapContextActions(
         contextColumnHeaderItems,
-        {
-          value: null,
-          valueText: null,
-          rowIndex: null,
-          columnIndex: sourceColumn,
-          column,
-          model,
-          modelColumn,
-          modelRow: null,
-        },
+        headerContextMenuData,
         this.alwaysFetchColumns,
-        getModelSelectedRanges(irisGrid)
+        getModelSelectedRanges(irisGrid, headerContextMenuData)
       ),
     ];
   }

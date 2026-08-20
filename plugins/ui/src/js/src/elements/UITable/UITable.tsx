@@ -546,7 +546,7 @@ export function UITable({
         contextMenu,
         data,
         alwaysFetchColumns,
-        irisGrid != null ? getModelSelectedRanges(irisGrid) : []
+        irisGrid != null ? getModelSelectedRanges(irisGrid, data) : []
       ),
       ...pluginOnContextMenu(data),
     ],
