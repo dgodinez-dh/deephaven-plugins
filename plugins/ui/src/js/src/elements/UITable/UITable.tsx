@@ -68,6 +68,7 @@ import UITableContextMenuHandler, {
   type ResolvableUIContextItem,
   wrapContextActions,
   getModelSelectedRanges,
+  getVisibleColumnNames,
 } from './UITableContextMenuHandler';
 import type UITableModel from './UITableModel';
 import { makeUiTableModel } from './UITableModel';
@@ -611,7 +612,10 @@ export function UITable({
           contextMenu,
           data,
           alwaysFetchColumns,
-          irisGrid != null ? getModelSelectedRanges(irisGrid, data) : []
+          irisGrid != null ? getModelSelectedRanges(irisGrid, data) : [],
+          irisGrid != null && model != null
+            ? getVisibleColumnNames(irisGrid, model)
+            : []
         ),
         ...pluginOnContextMenu(data),
       ];

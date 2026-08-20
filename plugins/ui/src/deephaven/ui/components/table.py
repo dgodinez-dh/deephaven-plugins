@@ -249,7 +249,12 @@ def _add_selected_rows(data: dict, tbl: Table) -> dict:
     data = dict(data)
     # Use the model table injected by JS (sorted/filtered) when available.
     model_tbl = data.pop("_table", tbl)
-    data["selected_rows"] = _resolve_selection(data.pop("selected_ranges", []), model_tbl)
+    visible_columns = data.pop("_visible_columns", None)
+    selected_rows = _resolve_selection(data.pop("selected_ranges", []), model_tbl)
+    # Apply column order/visibility to match what the user sees (moves + hidden columns).
+    if visible_columns:
+        selected_rows = selected_rows.view(visible_columns)
+    data["selected_rows"] = selected_rows
     return data
 
 

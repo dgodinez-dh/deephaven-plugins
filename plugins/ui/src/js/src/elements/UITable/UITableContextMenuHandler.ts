@@ -33,6 +33,7 @@ interface UIContextItemParams {
     start_column: number | null;
     end_column: number | null;
   }[];
+  _visible_columns: string[];
 }
 
 type UIContextItem = Omit<ContextAction, 'action' | 'actions' | 'icon'> & {
@@ -51,7 +52,8 @@ function wrapUIContextItem(
   item: UIContextItem,
   data: IrisGridContextMenuData,
   alwaysFetchColumns: RowDataMap,
-  selectedRanges: UIContextItemParams['selected_ranges']
+  selectedRanges: UIContextItemParams['selected_ranges'],
+  visibleColumns: string[]
 ): ContextAction {
   return {
     group: 999999, // Default to the end of the menu
@@ -70,6 +72,7 @@ function wrapUIContextItem(
             is_row_header: data.columnIndex == null,
             always_fetch_columns: alwaysFetchColumns,
             selected_ranges: selectedRanges,
+            _visible_columns: visibleColumns,
           });
         }
       : undefined,
@@ -78,7 +81,8 @@ function wrapUIContextItem(
           item.actions,
           data,
           alwaysFetchColumns,
-          selectedRanges
+          selectedRanges,
+          visibleColumns
         )
       : undefined,
   } satisfies ContextAction;
@@ -88,10 +92,17 @@ function wrapUIContextItems(
   items: UIContextItem | UIContextItem[],
   data: IrisGridContextMenuData,
   alwaysFetchColumns: RowDataMap,
-  selectedRanges: UIContextItemParams['selected_ranges']
+  selectedRanges: UIContextItemParams['selected_ranges'],
+  visibleColumns: string[]
 ): ContextAction[] {
   return ensureArray(items).map(item =>
-    wrapUIContextItem(item, data, alwaysFetchColumns, selectedRanges)
+    wrapUIContextItem(
+      item,
+      data,
+      alwaysFetchColumns,
+      selectedRanges,
+      visibleColumns
+    )
   );
 }
 
@@ -106,7 +117,8 @@ export function wrapContextActions(
   items: ResolvableUIContextItem | ResolvableUIContextItem[],
   data: IrisGridContextMenuData,
   alwaysFetchColumns: ColumnName[] | RowDataMap,
-  selectedRanges: UIContextItemParams['selected_ranges']
+  selectedRanges: UIContextItemParams['selected_ranges'],
+  visibleColumns: string[]
 ): ResolvableContextAction[] {
   let alwaysFetchColumnsMap: RowDataMap = {};
   if (Array.isArray(alwaysFetchColumns)) {
@@ -134,14 +146,22 @@ export function wrapContextActions(
             is_row_header: data.columnIndex == null,
             always_fetch_columns: alwaysFetchColumnsMap,
             selected_ranges: selectedRanges,
+            _visible_columns: visibleColumns,
           })) ?? [],
           data,
           alwaysFetchColumnsMap,
-          selectedRanges
+          selectedRanges,
+          visibleColumns
         );
     }
 
-    return wrapUIContextItem(item, data, alwaysFetchColumnsMap, selectedRanges);
+    return wrapUIContextItem(
+      item,
+      data,
+      alwaysFetchColumnsMap,
+      selectedRanges,
+      visibleColumns
+    );
   });
 }
 
@@ -199,6 +219,30 @@ export function getModelSelectedRanges(
           ? irisGrid.getModelColumn(range.endColumn) ?? null
           : null,
     }));
+}
+
+/**
+ * Returns visible column names in their current visual order (moves applied, hidden columns excluded).
+ */
+export function getVisibleColumnNames(
+  irisGrid: IrisGridType,
+  model: IrisGridModel
+): string[] {
+  const { metrics } = irisGrid.state;
+  if (metrics == null) return [];
+
+  const names: string[] = [];
+  for (let visIdx = 0; visIdx < metrics.columnCount; visIdx += 1) {
+    const modelIdx = irisGrid.getModelColumn(visIdx);
+    if (
+      modelIdx != null &&
+      model.columns[modelIdx] != null &&
+      (metrics.allColumnWidths.get(visIdx) ?? 0) > 0
+    ) {
+      names.push(model.columns[modelIdx].name);
+    }
+  }
+  return names;
 }
 
 /**
@@ -266,7 +310,8 @@ class UITableContextMenuHandler extends IrisGridContextMenuHandler {
         contextColumnHeaderItems,
         headerContextMenuData,
         this.alwaysFetchColumns,
-        getModelSelectedRanges(irisGrid, headerContextMenuData)
+        getModelSelectedRanges(irisGrid, headerContextMenuData),
+        getVisibleColumnNames(irisGrid, model)
       ),
     ];
   }
