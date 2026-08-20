@@ -601,12 +601,15 @@ function WidgetHandler({
     return { status: 'ready', descriptor: widgetDescriptor };
   }, [error, widgetDescriptor, isLoading]);
 
+  const setNextCallableRefs = useCallback(
+    (refs: Array<dh.Table | dh.TreeTable>) => {
+      pendingRefs.current = refs;
+    },
+    []
+  );
+
   return renderedDocument != null ? (
-    <WidgetCallableContext.Provider
-      value={refs => {
-        pendingRefs.current = refs;
-      }}
-    >
+    <WidgetCallableContext.Provider value={setNextCallableRefs}>
       <NavigateContext.Provider value={handleNavigate}>
         <WidgetStatusContext.Provider value={widgetStatus}>
           <DocumentHandler
