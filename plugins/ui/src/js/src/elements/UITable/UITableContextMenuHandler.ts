@@ -1,4 +1,4 @@
-import { type GridPoint, type ModelIndex } from '@deephaven/grid';
+import { GridRange, type GridPoint, type ModelIndex } from '@deephaven/grid';
 import type {
   ContextAction,
   ResolvableContextAction,
@@ -179,22 +179,26 @@ export function getModelSelectedRanges(
     ];
   }
 
-  return selectedRanges.map(range => ({
-    start_row:
-      range.startRow != null
-        ? irisGrid.getModelRow(range.startRow) ?? null
-        : null,
-    end_row:
-      range.endRow != null ? irisGrid.getModelRow(range.endRow) ?? null : null,
-    start_column:
-      range.startColumn != null
-        ? irisGrid.getModelColumn(range.startColumn) ?? null
-        : null,
-    end_column:
-      range.endColumn != null
-        ? irisGrid.getModelColumn(range.endColumn) ?? null
-        : null,
-  }));
+  return GridRange.consolidate(selectedRanges)
+    .sort((a, b) => (a.startRow ?? 0) - (b.startRow ?? 0))
+    .map(range => ({
+      start_row:
+        range.startRow != null
+          ? irisGrid.getModelRow(range.startRow) ?? null
+          : null,
+      end_row:
+        range.endRow != null
+          ? irisGrid.getModelRow(range.endRow) ?? null
+          : null,
+      start_column:
+        range.startColumn != null
+          ? irisGrid.getModelColumn(range.startColumn) ?? null
+          : null,
+      end_column:
+        range.endColumn != null
+          ? irisGrid.getModelColumn(range.endColumn) ?? null
+          : null,
+    }));
 }
 
 /**
