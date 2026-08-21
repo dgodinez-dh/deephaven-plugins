@@ -252,7 +252,9 @@ def _resolve_selection(
         for r in selected_ranges
         if r.get("start_row") is not None and r.get("end_row") is not None
     ]
-    combined = merge(slices) if len(slices) > 1 else slices[0] if slices else tbl.slice(0, 0)
+    combined = (
+        merge(slices) if len(slices) > 1 else slices[0] if slices else tbl.slice(0, 0)
+    )
     return combined.snapshot()
 
 
@@ -556,7 +558,9 @@ class table(Element):
             # snapshot Table) instead of the raw `selected_ranges` indices from JS.
             # Only possible for plain Table - RollupTable/TreeTable lack slice support.
             if context_menu is not None:
-                items = context_menu if isinstance(context_menu, list) else [context_menu]
+                items = (
+                    context_menu if isinstance(context_menu, list) else [context_menu]
+                )
                 props["context_menu"] = [_wrap_context_menu_item(i, tbl) for i in items]
             if context_header_menu is not None:
                 items = (
