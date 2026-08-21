@@ -552,6 +552,9 @@ class table(Element):
 
         tbl = props["table"]
         if isinstance(tbl, Table):
+            # Wrap context menu items so user callbacks receive `selected_rows` (a
+            # snapshot Table) instead of the raw `selected_ranges` indices from JS.
+            # Only possible for plain Table — RollupTable/TreeTable lack slice support.
             if context_menu is not None:
                 items = context_menu if isinstance(context_menu, list) else [context_menu]
                 props["context_menu"] = [_wrap_context_menu_item(i, tbl) for i in items]
