@@ -292,15 +292,15 @@ def _wrap_context_menu_item(
 
     Handles all three item shapes:
 
-    * **Dynamic generator** (callable) — wrapped so the generator receives an
+    * **Dynamic generator** (callable) - wrapped so the generator receives an
       enriched data dict and its returned items are recursively wrapped.
-    * **Action item** (dict with ``"action"`` key) — the action callable is
+    * **Action item** (dict with ``"action"`` key) - the action callable is
       wrapped to receive the enriched data dict.
-    * **Submenu item** (dict with ``"actions"`` key) — each nested item is
+    * **Submenu item** (dict with ``"actions"`` key) - each nested item is
       recursively wrapped.
 
     Args:
-        item: A ``ResolvableContextMenuItem`` — either a callable generator or
+        item: A ``ResolvableContextMenuItem`` - either a callable generator or
             an action/submenu dict.
         tbl: The source Table passed to :func:`_add_selected_rows`.
 
@@ -309,7 +309,7 @@ def _wrap_context_menu_item(
     """
     if callable(item) and not isinstance(item, dict):
 
-        def wrapped_generator(data, _item=item):
+        def wrapped_generator(data: Any, _item: Any = item) -> Any:
             result = _item(_add_selected_rows(data, tbl))
             if isinstance(result, list):
                 return [_wrap_context_menu_item(r, tbl) for r in result]
@@ -554,7 +554,7 @@ class table(Element):
         if isinstance(tbl, Table):
             # Wrap context menu items so user callbacks receive `selected_rows` (a
             # snapshot Table) instead of the raw `selected_ranges` indices from JS.
-            # Only possible for plain Table — RollupTable/TreeTable lack slice support.
+            # Only possible for plain Table - RollupTable/TreeTable lack slice support.
             if context_menu is not None:
                 items = context_menu if isinstance(context_menu, list) else [context_menu]
                 props["context_menu"] = [_wrap_context_menu_item(i, tbl) for i in items]
