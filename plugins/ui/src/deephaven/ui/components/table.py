@@ -233,6 +233,17 @@ def _resolve_selection(
     selected_ranges: list[dict],
     tbl: Table,
 ) -> Table:
+    """Resolve a list of selected row ranges into a static snapshot Table.
+
+    Args:
+        selected_ranges: List of range dicts with ``start_row`` and ``end_row`` keys
+            (model-index positions in the sorted/filtered view).
+        tbl: The source Table to slice from.
+
+    Returns:
+        A static snapshot Table containing the selected rows.  An empty table
+        with the same schema is returned when ``selected_ranges`` is empty.
+    """
     from deephaven import merge
 
     # Column bounds are ignored; a cell selection spans the full row per IrisGrid convention.
@@ -246,6 +257,21 @@ def _resolve_selection(
 
 
 def _add_selected_rows(data: dict, tbl: Table) -> dict:
+    """Enrich a context menu callback data dict with a ``selected_rows`` Table.
+
+    Pops the internal ``_table``, ``_visible_columns``, and ``selected_ranges``
+    keys from *data*, resolves the selection into a snapshot Table, optionally
+    applies column ordering/visibility, and stores the result as
+    ``data["selected_rows"]``.
+
+    Args:
+        data: Raw callback params dict received from the JS callable invocation.
+        tbl: The Python-side source Table (used as fallback when no ``_table``
+            reference was injected by JS).
+
+    Returns:
+        A copy of *data* with ``selected_rows`` populated and internal keys removed.
+    """
     data = dict(data)
     # Use the model table injected by JS (sorted/filtered) when available.
     model_tbl = data.pop("_table", tbl)
@@ -262,7 +288,25 @@ def _wrap_context_menu_item(
     item: ResolvableContextMenuItem,
     tbl: Table,
 ) -> Any:
-    """Wrap a context menu item so callbacks receive selected_rows instead of selected_ranges."""
+    """Wrap a context menu item so its callbacks receive ``selected_rows`` instead of raw ``selected_ranges``.
+
+    Handles all three item shapes:
+
+    * **Dynamic generator** (callable) — wrapped so the generator receives an
+      enriched data dict and its returned items are recursively wrapped.
+    * **Action item** (dict with ``"action"`` key) — the action callable is
+      wrapped to receive the enriched data dict.
+    * **Submenu item** (dict with ``"actions"`` key) — each nested item is
+      recursively wrapped.
+
+    Args:
+        item: A ``ResolvableContextMenuItem`` — either a callable generator or
+            an action/submenu dict.
+        tbl: The source Table passed to :func:`_add_selected_rows`.
+
+    Returns:
+        A wrapped version of *item* with the same shape.
+    """
     if callable(item) and not isinstance(item, dict):
 
         def wrapped_generator(data, _item=item):
