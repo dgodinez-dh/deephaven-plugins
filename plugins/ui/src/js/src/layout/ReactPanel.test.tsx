@@ -1,5 +1,6 @@
 import React, { useContext } from 'react';
 import { render, within } from '@testing-library/react';
+import * as DashboardModule from '@deephaven/dashboard';
 import {
   LayoutUtils,
   PanelIdContext,
@@ -47,8 +48,9 @@ function makeReactPanelManager({
   isPanelOpen = mockIsPanelOpen,
   title = 'test title',
   panelKey,
+  dhId,
 }: Partial<ReactPanelProps> &
-  Partial<ReactPanelManager> & { panelKey?: string } = {}) {
+  Partial<ReactPanelManager> & { panelKey?: string; dhId?: string } = {}) {
   return (
     <ReactPanelManagerContext.Provider
       value={{
@@ -61,7 +63,7 @@ function makeReactPanelManager({
         isPanelOpen,
       }}
     >
-      <ReactPanel title={title} __dhKey={panelKey}>
+      <ReactPanel title={title} __dhKey={panelKey} __dhId={dhId}>
         {children}
       </ReactPanel>
     </ReactPanelManagerContext.Provider>
@@ -80,12 +82,14 @@ function makeTestComponent({
   status = defaultStatus,
   title = 'test title',
   panelKey,
+  dhId,
 }: Partial<ReactPanelProps> &
   Partial<ReactPanelManager> & {
     metadata?: WidgetDescriptor;
     portals?: PortalPanelMap;
     status?: WidgetStatus;
     panelKey?: string;
+    dhId?: string;
   } = {}) {
   return (
     <WidgetStatusContext.Provider value={status}>
@@ -100,6 +104,7 @@ function makeTestComponent({
           isPanelOpen,
           title,
           panelKey,
+          dhId,
         })}
       </PortalPanelManagerContext.Provider>
     </WidgetStatusContext.Provider>
@@ -540,6 +545,61 @@ it('reads the saved state of its new id when a reused panel changes id', () => {
     })
   );
   expect(within(portal).getByText('b state')).toBeDefined();
+});
+
+describe('persistent state key root', () => {
+  let providerSpy: jest.SpyInstance;
+
+  beforeEach(() => {
+    providerSpy = jest.spyOn(DashboardModule, 'PersistentStateProvider');
+  });
+
+  afterEach(() => {
+    providerSpy.mockRestore();
+  });
+
+  it('saves state relative to the panel element', () => {
+    const portals = new Map([[mockPanelId, document.createElement('div')]]);
+    render(makeTestComponent({ portals, dhId: '/ui.panel' }));
+
+    expect(providerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ keyRoot: '/ui.panel' }),
+      expect.anything()
+    );
+  });
+
+  it('has no key root for placeholder panels', () => {
+    const portals = new Map([[mockPanelId, document.createElement('div')]]);
+    render(makeTestComponent({ portals }));
+
+    expect(providerSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ keyRoot: undefined }),
+      expect.anything()
+    );
+  });
+
+  it('remounts the provider when the panel element changes', () => {
+    const onMount = jest.fn();
+    function MountTracker(): null {
+      React.useEffect(onMount, []);
+      return null;
+    }
+    const portals = new Map([[mockPanelId, document.createElement('div')]]);
+    const { rerender } = render(
+      makeTestComponent({ portals, children: <MountTracker /> })
+    );
+    rerender(makeTestComponent({ portals, children: <MountTracker /> }));
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    rerender(
+      makeTestComponent({
+        portals,
+        dhId: '/ui.panel',
+        children: <MountTracker />,
+      })
+    );
+    expect(onMount).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe('key', () => {

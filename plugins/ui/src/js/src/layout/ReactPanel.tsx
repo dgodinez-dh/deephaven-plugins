@@ -27,7 +27,7 @@ import {
 import Log from '@deephaven/log';
 import PortalPanel from './PortalPanel';
 import { type ReactPanelControl, useReactPanel } from './ReactPanelManager';
-import { type ReactPanelProps } from './LayoutUtils';
+import { type ElementIdProps, type ReactPanelProps } from './LayoutUtils';
 import { useParentItem } from './ParentItemContext';
 import { ReactPanelContext, usePanelId } from './ReactPanelContext';
 import { usePortalPanelManager } from './PortalPanelManagerContext';
@@ -41,6 +41,7 @@ const log = Log.module('@deephaven/js-plugin-ui/ReactPanel');
 
 interface Props
   extends ReactPanelProps,
+    ElementIdProps,
     Pick<
       ViewProps,
       | 'backgroundColor'
@@ -80,6 +81,7 @@ function ReactPanel({
   children,
   title,
   __dhKey,
+  __dhId,
   backgroundColor,
   direction = 'column',
   wrap,
@@ -348,11 +350,12 @@ function ReactPanel({
                    * Don't render the children if there's an error with the widget. If there's an error with the widget, we can assume the children won't render properly,
                    * but we still want the panels to appear so things don't disappear/jump around.
                    */}
-                  {/* It only reads `initialState` on mount, so remount when a reused panel changes id */}
+                  {/* It only reads `initialState` and `keyRoot` on mount, so remount when a reused panel changes either */}
                   <PersistentStateProvider
-                    key={panelId}
+                    key={JSON.stringify([panelId, __dhId])}
                     initialState={initialData}
                     onChange={onDataChange}
+                    keyRoot={__dhId}
                   >
                     {renderedChildren ?? null}
                   </PersistentStateProvider>
